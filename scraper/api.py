@@ -25,7 +25,6 @@ def extract_spec(text):
 
 def get_price_estimate(query, max_ads=200):
     base_url = "https://www.olx.pt/ads/q-"
-    # Codifica a query para formar um URL válido
     query_encoded = urllib.parse.quote_plus(query)
     page = 1
     prices = []
@@ -45,16 +44,14 @@ def get_price_estimate(query, max_ads=200):
             break
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        # Tenta encontrar os elementos que contenham o símbolo de Euro.
-        # Essa abordagem é mais flexível se o layout mudar.
         price_tags = soup.find_all(lambda tag: tag.name in ['p', 'span'] and '€' in tag.get_text())
-        
+
         if not price_tags:
             print("Nenhum anúncio encontrado nesta página.")
             break
 
         for tag in price_tags:
-            price_text = tag.get_text(strip=True).replace('€','').replace(',', '.').strip()
+            price_text = tag.get_text(strip=True).replace('€', '').replace(',', '.').strip()
             try:
                 price = float(price_text)
                 prices.append(price)
@@ -71,7 +68,7 @@ def get_price_estimate(query, max_ads=200):
         print("❌ Nenhum anúncio válido encontrado.")
         return None
 
-    # Remove outliers utilizando 2 desvios padrão e usa a mediana dos preços filtrados
+    # Remove outliers (2 desvios padrão) e usa mediana
     mean_price = np.mean(prices)
     std_dev = np.std(prices)
     filtered_prices = [p for p in prices if (mean_price - 2 * std_dev) <= p <= (mean_price + 2 * std_dev)]
@@ -92,7 +89,7 @@ def get_price():
 
     estado = request.args.get("estado", "bom")
 
-    # Obtém a estimativa de preço usando o scraper
+    # Estimativa base via scraper
     result = get_price_estimate(query)
     if not result:
         return jsonify({"error": "Nenhum anúncio encontrado."}), 404
@@ -105,10 +102,10 @@ def get_price():
 
     current_year = datetime.datetime.now().year
     age = current_year - anoCompra_int
-    depreciation_rate = 0.05  # Depreciação de 5% por ano
+    depreciation_rate = 0.05  # Depreciação de 5% ao ano
     depreciation_factor = max(1 - (age * depreciation_rate), 0.5)
 
-    # Aplica a depreciação e o ajuste do estado ao preço estimado
+    # Depreciação e ajuste pelo estado
     base_final_price = round(price_estimate * depreciation_factor, 2)
     if estado == "novo":
         estado_factor = 1.1
@@ -118,7 +115,7 @@ def get_price():
         estado_factor = 1.0
     final_price = round(base_final_price * estado_factor, 2)
 
-    # Se a query contém "16GB", realiza uma consulta separada para "8GB"
+    # Se a query contém "16GB", faz comparação com "8GB"
     spec_query = extract_spec(query)
     if spec_query == "16GB":
         query_8gb = query.replace("16GB", "8GB")
@@ -131,6 +128,9 @@ def get_price():
             if final_price <= final_price_8gb:
                 final_price = round(final_price_8gb * 1.1, 2)
                 print("Ajustado preço 16GB para 10% maior que 8GB.")
+
+    # Arredondar para múltiplos de 5
+    final_price = round(final_price / 5) * 5
 
     return jsonify({
         "query": query,
